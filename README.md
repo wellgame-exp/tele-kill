@@ -72,6 +72,15 @@ local closerPlayerActive = false
 local closestPlayer = nil
 local autoClickActive = false
 local spinAngle = 0
+local spinOffActive = false -- true = disable spin rotation on all teleports
+
+local function getTeleportRotation(underground)
+	if spinOffActive then
+		return underground and CFrame.Angles(math.rad(90), 0, 0) or CFrame.new()
+	end
+	spinAngle = spinAngle + math.rad(180)
+	return underground and CFrame.Angles(math.rad(90), 0, spinAngle) or CFrame.Angles(0, spinAngle, 0)
+end
 local toolNameInput = "Sword"
 local flingOnTeleport = false -- ON = fling the target during Teleport Once, stops when teleported back
 local teamCheckEnabled = false -- ON = never target players on your Roblox team
@@ -1012,11 +1021,11 @@ local function executeTeleportDownOnce(forceCloser, forceFling)
 						fireToolOnce({ target })
 					end
 
-					spinAngle = spinAngle + math.rad(180)
+					local rot = getTeleportRotation(true)
 					pcall(function()
 						activeRoot.Velocity = Vector3.new(0, 0, 0)
 						activeRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-						activeRoot.CFrame = targetRoot.CFrame * CFrame.new(0, -4, 0) * CFrame.Angles(math.rad(90), 0, spinAngle)
+						activeRoot.CFrame = targetRoot.CFrame * CFrame.new(0, -4, 0) * rot
 					end)
 					if flingOnTeleport or forceFling then
 						pcall(function()
@@ -1086,12 +1095,12 @@ local function executeTeleportOnce(forceCloser, forceFling)
 						fireToolOnce({ target })
 					end
 
-					spinAngle = spinAngle + math.rad(180)
+					local rot = getTeleportRotation(false)
 					pcall(function()
 						activeRoot.Velocity = Vector3.new(0, 0, 0)
 						activeRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 						local offsetX = ((closerPlayerActive or forceCloser) and CLOSER_DISTANCE == 0) and 0 or ((closerPlayerActive or forceCloser) and CLOSER_DISTANCE or 3)
-						activeRoot.CFrame = targetRoot.CFrame * CFrame.new(offsetX, 0, 0) * CFrame.Angles(0, spinAngle, 0)
+						activeRoot.CFrame = targetRoot.CFrame * CFrame.new(offsetX, 0, 0) * rot
 					end)
 					if flingOnTeleport or forceFling then
 						pcall(function()
@@ -1202,6 +1211,20 @@ local function cleanupExistingUI()
 		if env._TELEKILL_EXEC2 then
 			env._TELEKILL_EXEC2:Destroy()
 			env._TELEKILL_EXEC2 = nil
+		end
+	end)
+
+	pcall(function()
+		if env._TELEKILL_BACKPACK_GUI then
+			env._TELEKILL_BACKPACK_GUI:Destroy()
+			env._TELEKILL_BACKPACK_GUI = nil
+		end
+		local pg = player:FindFirstChildOfClass("PlayerGui")
+		if pg then
+			local existingBp = pg:FindFirstChild("BackpackActionGUI")
+			if existingBp then
+				existingBp:Destroy()
+			end
 		end
 	end)
 
@@ -1342,7 +1365,7 @@ local function startCloserLoop()
 				local targetRoot = locked and getCharacterRoot(locked.Character)
 				if targetRoot then
 					teleportFireStep(locked)
-					spinAngle += math.rad(180)
+					local rot = getTeleportRotation(teleportDownUnderActive)
 
 					if flingOnTeleport then
 						pcall(function()
@@ -1358,10 +1381,10 @@ local function startCloserLoop()
 							root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 
 							if teleportDownUnderActive then
-								root.CFrame = targetRoot.CFrame * CFrame.new(0, -4, 0) * CFrame.Angles(math.rad(90), 0, spinAngle)
+								root.CFrame = targetRoot.CFrame * CFrame.new(0, -4, 0) * rot
 							else
 								local closerOffsetX = (closerPlayerActive and CLOSER_DISTANCE == 0) and 0 or (closerPlayerActive and CLOSER_DISTANCE or 3)
-								root.CFrame = targetRoot.CFrame * CFrame.new(closerOffsetX, 0, 0) * CFrame.Angles(0, spinAngle, 0)
+								root.CFrame = targetRoot.CFrame * CFrame.new(closerOffsetX, 0, 0) * rot
 							end
 						end)
 					end
@@ -1446,6 +1469,7 @@ local function collectSettings()
 		selectedTheme = selectedTheme,
 		selectedHexColor = selectedHexColor,
 		teleportDownUnderActive = teleportDownUnderActive,
+		spinOffActive = spinOffActive,
 		fireOnTeleport = fireOnTeleport,
 		flingOnTeleport = flingOnTeleport,
 		notificationsEnabled = notificationsEnabled,
@@ -1475,6 +1499,7 @@ local function applySettings(t)
 	if type(t.selectedTheme) == "string" then selectedTheme = t.selectedTheme end
 	if type(t.selectedHexColor) == "string" then selectedHexColor = t.selectedHexColor end
 	if type(t.teleportDownUnderActive) == "boolean" then teleportDownUnderActive = t.teleportDownUnderActive end
+	if type(t.spinOffActive) == "boolean" then spinOffActive = t.spinOffActive end
 	if type(t.fireOnTeleport) == "boolean" then fireOnTeleport = t.fireOnTeleport end
 	if type(t.flingOnTeleport) == "boolean" then flingOnTeleport = t.flingOnTeleport end
 	if type(t.notificationsEnabled) == "boolean" then notificationsEnabled = t.notificationsEnabled end
@@ -1498,7 +1523,7 @@ local function buildUI()
 	cleanupExistingUI()
 
 	local Window = WindUI:CreateWindow({
-		Title = "TeleKill Hub | WindUI",
+		Title = "TeleKill Hub v19 | WindUI",
 		Folder = "TeleKillHub",
 		Icon = "solar:folder-2-bold-duotone",
 		Theme = selectedTheme,
@@ -1728,10 +1753,10 @@ local function buildUI()
 
 								teleportFireStep(target)
 
-								spinAngle = spinAngle + math.rad(180)
+								local rot = getTeleportRotation(false)
 								pcall(function()
 									root.Velocity = Vector3.new(0, 0, 0)
-									root.CFrame = targetRoot.CFrame * CFrame.new(3, 0, 0) * CFrame.Angles(0, spinAngle, 0)
+									root.CFrame = targetRoot.CFrame * CFrame.new(3, 0, 0) * rot
 								end)
 								task.wait(RETURN_TIME)
 							end
@@ -1789,10 +1814,10 @@ local function buildUI()
 
 									teleportFireStep(target)
 
-									spinAngle = spinAngle + math.rad(180)
+									local rot = getTeleportRotation(false)
 									pcall(function()
 										activeRoot.Velocity = Vector3.new(0, 0, 0)
-										activeRoot.CFrame = targetRoot.CFrame * CFrame.new(3, 0, 0) * CFrame.Angles(0, spinAngle, 0)
+										activeRoot.CFrame = targetRoot.CFrame * CFrame.new(3, 0, 0) * rot
 									end)
 									task.wait(RETURN_TIME)
 								end
@@ -1848,11 +1873,11 @@ local function buildUI()
 
 									teleportFireStep(target)
 
-									spinAngle = spinAngle + math.rad(180)
+									local rot = getTeleportRotation(true)
 									pcall(function()
 										activeRoot.Velocity = Vector3.new(0, 0, 0)
 										activeRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-										activeRoot.CFrame = targetRoot.CFrame * CFrame.new(0, -4, 0) * CFrame.Angles(math.rad(90), 0, spinAngle)
+										activeRoot.CFrame = targetRoot.CFrame * CFrame.new(0, -4, 0) * rot
 									end)
 									task.wait(RETURN_TIME)
 								end
@@ -1892,11 +1917,11 @@ local function buildUI()
 
 									teleportFireStep(target)
 
-									spinAngle = spinAngle + math.rad(180)
+									local rot = getTeleportRotation(true)
 									pcall(function()
 										root.Velocity = Vector3.new(0, 0, 0)
 										root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-										root.CFrame = targetRoot.CFrame * CFrame.new(0, -4, 0) * CFrame.Angles(math.rad(90), 0, spinAngle)
+										root.CFrame = targetRoot.CFrame * CFrame.new(0, -4, 0) * rot
 									end)
 									task.wait(RETURN_TIME)
 								end
@@ -2092,7 +2117,360 @@ local function buildUI()
 		end
 	})
 
+	--// Backpack / Copy Name / Delete GUI (toggled from Auto Clicker tab)
+	local function toggleBackpackActionGuiInner(forceState)
+		local pg = player:FindFirstChildOfClass("PlayerGui") or player:WaitForChild("PlayerGui")
+		local existing = (env._TELEKILL_BACKPACK_GUI and env._TELEKILL_BACKPACK_GUI.Parent) and env._TELEKILL_BACKPACK_GUI or pg:FindFirstChild("BackpackActionGUI")
+
+		if existing and existing:IsA("ScreenGui") then
+			local targetEnabled = (type(forceState) == "boolean") and forceState or (not existing.Enabled)
+			existing.Enabled = targetEnabled
+			env._TELEKILL_BACKPACK_GUI = existing
+			return targetEnabled
+		end
+
+		local SLOT_COUNT = 8
+
+		local screenGui = Instance.new("ScreenGui")
+		screenGui.Name = "BackpackActionGUI"
+		screenGui.ResetOnSpawn = false
+		screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		screenGui.Enabled = (type(forceState) == "boolean") and forceState or true
+		screenGui.Parent = pg
+		env._TELEKILL_BACKPACK_GUI = screenGui
+
+		local mainFrame = Instance.new("Frame")
+		mainFrame.Name = "MainFrame"
+		mainFrame.Size = UDim2.new(0, 470, 0, 215)
+		mainFrame.Position = UDim2.new(0.5, -235, 0.72, -107)
+		mainFrame.BackgroundColor3 = Color3.fromRGB(20, 22, 26)
+		mainFrame.BorderSizePixel = 0
+		mainFrame.Active = true
+		mainFrame.Draggable = true
+		mainFrame.Parent = screenGui
+
+		Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+		local mainStroke = Instance.new("UIStroke", mainFrame)
+		mainStroke.Color = Color3.fromRGB(60, 65, 75)
+		mainStroke.Thickness = 1.5
+
+		local titleBar = Instance.new("Frame")
+		titleBar.Size = UDim2.new(1, 0, 0, 32)
+		titleBar.BackgroundColor3 = Color3.fromRGB(28, 31, 37)
+		titleBar.BorderSizePixel = 0
+		titleBar.Parent = mainFrame
+		Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 12)
+
+		local titleLabel = Instance.new("TextLabel")
+		titleLabel.Size = UDim2.new(1, -24, 1, 0)
+		titleLabel.Position = UDim2.new(0, 12, 0, 0)
+		titleLabel.BackgroundTransparency = 1
+		titleLabel.Text = "BACKPACK / COPY NAME / DELETE  [=]"
+		titleLabel.TextColor3 = Color3.fromRGB(235, 240, 248)
+		titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+		titleLabel.Font = Enum.Font.GothamBold
+		titleLabel.TextSize = 12
+		titleLabel.Parent = titleBar
+
+		local statusLabel = Instance.new("TextLabel")
+		statusLabel.Size = UDim2.new(1, -24, 0, 20)
+		statusLabel.Position = UDim2.new(0, 12, 1, -24)
+		statusLabel.BackgroundTransparency = 1
+		statusLabel.Text = "Sword Name: None"
+		statusLabel.TextColor3 = Color3.fromRGB(165, 175, 190)
+		statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+		statusLabel.Font = Enum.Font.Gotham
+		statusLabel.TextSize = 11
+		statusLabel.Parent = mainFrame
+
+		local slotsHolder = Instance.new("Frame")
+		slotsHolder.Size = UDim2.new(0, 324, 0, 134)
+		slotsHolder.Position = UDim2.new(0, 14, 0, 42)
+		slotsHolder.BackgroundTransparency = 1
+		slotsHolder.Parent = mainFrame
+
+		local gridLayout = Instance.new("UIGridLayout", slotsHolder)
+		gridLayout.CellSize = UDim2.new(0, 73, 0, 62)
+		gridLayout.CellPadding = UDim2.new(0, 8, 0, 8)
+		gridLayout.FillDirection = Enum.FillDirection.Horizontal
+		gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+		gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+		gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+		local actionsHolder = Instance.new("Frame")
+		actionsHolder.Size = UDim2.new(0, 108, 0, 134)
+		actionsHolder.Position = UDim2.new(1, -120, 0, 42)
+		actionsHolder.BackgroundColor3 = Color3.fromRGB(26, 36, 30)
+		actionsHolder.BorderSizePixel = 0
+		actionsHolder.Parent = mainFrame
+		Instance.new("UICorner", actionsHolder).CornerRadius = UDim.new(0, 12)
+
+		local actionsStroke = Instance.new("UIStroke", actionsHolder)
+		actionsStroke.Color = Color3.fromRGB(46, 175, 92)
+		actionsStroke.Thickness = 2
+
+		local actionLayout = Instance.new("UIListLayout", actionsHolder)
+		actionLayout.FillDirection = Enum.FillDirection.Vertical
+		actionLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		actionLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+		actionLayout.Padding = UDim.new(0, 12)
+
+		local function createActionButton(name, text, bgColor)
+			local btn = Instance.new("TextButton")
+			btn.Name = name
+			btn.Size = UDim2.new(1, -14, 0, 46)
+			btn.BackgroundColor3 = bgColor
+			btn.Text = text
+			btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			btn.Font = Enum.Font.GothamBold
+			btn.TextSize = 13
+			btn.Parent = actionsHolder
+			Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+			return btn
+		end
+
+		local copyBtn = createActionButton("CopyBtn", "COPY", Color3.fromRGB(34, 165, 82))
+		local deleteBtn = createActionButton("DeleteBtn", "DELETE", Color3.fromRGB(26, 128, 64))
+
+		local selectedTool = nil
+		local currentSwordName = nil
+		local slotButtons = {}
+
+		local function copyToClipboard(text)
+			local clipFn = setclipboard or toclipboard or set_clipboard
+			if typeof(clipFn) == "function" then
+				pcall(clipFn, text)
+				return true
+			end
+			return false
+		end
+
+		local function getAllTools()
+			local list = {}
+			local backpack = player:FindFirstChild("Backpack")
+			if backpack then
+				for _, item in ipairs(backpack:GetChildren()) do
+					if item:IsA("Tool") then
+						table.insert(list, item)
+					end
+				end
+			end
+
+			local char = player.Character
+			if char then
+				for _, item in ipairs(char:GetChildren()) do
+					if item:IsA("Tool") then
+						table.insert(list, item)
+					end
+				end
+			end
+			return list
+		end
+
+		local function updateStatus()
+			statusLabel.Text = "Sword Name: " .. (currentSwordName or "None")
+		end
+
+		local function refreshSlots()
+			if not screenGui.Parent then return end
+			local tools = getAllTools()
+
+			if selectedTool and not table.find(tools, selectedTool) then
+				selectedTool = nil
+				currentSwordName = nil
+			end
+
+			for i = 1, SLOT_COUNT do
+				local btn = slotButtons[i]
+				local tool = tools[i]
+				local stroke = btn:FindFirstChildOfClass("UIStroke")
+
+				if tool then
+					local swordName = tool.Name
+					btn.Text = swordName
+
+					if selectedTool == tool then
+						currentSwordName = swordName
+						btn.BackgroundColor3 = Color3.fromRGB(48, 26, 30)
+						if stroke then
+							stroke.Color = Color3.fromRGB(255, 235, 90)
+							stroke.Thickness = 2.5
+						end
+					else
+						btn.BackgroundColor3 = Color3.fromRGB(32, 22, 25)
+						if stroke then
+							stroke.Color = Color3.fromRGB(220, 48, 56)
+							stroke.Thickness = 2
+						end
+					end
+				else
+					btn.Text = "Empty " .. i
+					btn.BackgroundColor3 = Color3.fromRGB(25, 25, 28)
+					if stroke then
+						stroke.Color = Color3.fromRGB(160, 38, 46)
+						stroke.Thickness = 1.5
+					end
+				end
+			end
+
+			updateStatus()
+		end
+
+		for i = 1, SLOT_COUNT do
+			local slotBtn = Instance.new("TextButton")
+			slotBtn.Name = "Slot_" .. i
+			slotBtn.LayoutOrder = i
+			slotBtn.BackgroundColor3 = Color3.fromRGB(32, 22, 25)
+			slotBtn.Text = "Empty " .. i
+			slotBtn.TextColor3 = Color3.fromRGB(240, 240, 245)
+			slotBtn.TextWrapped = true
+			slotBtn.Font = Enum.Font.GothamBold
+			slotBtn.TextSize = 10
+			slotBtn.Parent = slotsHolder
+
+			Instance.new("UICorner", slotBtn).CornerRadius = UDim.new(0, 8)
+			local stroke = Instance.new("UIStroke", slotBtn)
+			stroke.Color = Color3.fromRGB(220, 48, 56)
+			stroke.Thickness = 2
+
+			slotBtn.MouseButton1Click:Connect(function()
+				local tools = getAllTools()
+				local chosen = tools[i]
+				if chosen then
+					if selectedTool == chosen then
+						selectedTool = nil
+						currentSwordName = nil
+					else
+						selectedTool = chosen
+						currentSwordName = chosen.Name
+						print("Selected Sword Name:", currentSwordName)
+					end
+					refreshSlots()
+				end
+			end)
+
+			table.insert(slotButtons, slotBtn)
+		end
+
+		copyBtn.MouseButton1Click:Connect(function()
+			local textToCopy = nil
+
+			if selectedTool and selectedTool.Parent then
+				textToCopy = selectedTool.Name
+			else
+				local tools = getAllTools()
+				if #tools > 0 then
+					local names = {}
+					for _, tool in ipairs(tools) do
+						table.insert(names, tool.Name)
+					end
+					textToCopy = table.concat(names, ", ")
+				end
+			end
+
+			if not textToCopy then
+				statusLabel.Text = "No tool name to COPY!"
+				return
+			end
+
+			local ok = copyToClipboard(textToCopy)
+			print("Copied Name:", textToCopy)
+			if ok then
+				statusLabel.Text = "Copied Name -> " .. textToCopy
+			else
+				statusLabel.Text = "Name: " .. textToCopy .. " (clipboard N/A)"
+			end
+		end)
+
+		deleteBtn.MouseButton1Click:Connect(function()
+			if not selectedTool or not selectedTool.Parent then
+				statusLabel.Text = "Select a sword slot first to DELETE!"
+				return
+			end
+			local deletedName = selectedTool.Name
+			selectedTool:Destroy()
+			selectedTool = nil
+			currentSwordName = nil
+			refreshSlots()
+			statusLabel.Text = "Deleted -> " .. deletedName
+		end)
+
+		UserInputService.InputBegan:Connect(function(input, gameProcessed)
+			if gameProcessed then return end
+			if input.KeyCode == Enum.KeyCode.Equals then
+				mainFrame.Visible = not mainFrame.Visible
+			end
+		end)
+
+		local function hookContainer(container)
+			if not container then return end
+			container.ChildAdded:Connect(refreshSlots)
+			container.ChildRemoved:Connect(refreshSlots)
+		end
+
+		hookContainer(player:FindFirstChild("Backpack"))
+		if player.Character then
+			hookContainer(player.Character)
+		end
+		player.CharacterAdded:Connect(function(char)
+			task.wait(0.2)
+			hookContainer(player:FindFirstChild("Backpack"))
+			hookContainer(char)
+			refreshSlots()
+		end)
+
+		refreshSlots()
+		return screenGui.Enabled
+	end
+
+	local function setBackpackActionGui(state)
+		local ok, res = pcall(toggleBackpackActionGuiInner, state and true or false)
+		if not ok then
+			warn("[Backpack Action GUI] " .. tostring(res))
+			notify("Backpack GUI", "Error: " .. tostring(res):sub(1, 100))
+			return false
+		end
+		return res
+	end
+
+	AutoClickTab:Space()
+
+	AutoClickTab:Toggle({
+		Title = "Tools Name Copy GUI",
+		Desc = "Toggle the Backpack / Copy Name / Delete GUI on screen",
+		Value = false,
+		Callback = function(state)
+			setBackpackActionGui(state)
+		end
+	})
+
+	AutoClickTab:Space()
+
+	AutoClickTab:Button({
+		Title = "Show / Toggle Tools Name Copy GUI",
+		Desc = "Opens or toggles the Backpack / Copy Name / Delete GUI",
+		Justify = "Center",
+		Callback = function()
+			local nowEnabled = setBackpackActionGui(not (env._TELEKILL_BACKPACK_GUI and env._TELEKILL_BACKPACK_GUI.Enabled))
+			notify("Tools Name Copy", nowEnabled and "GUI shown" or "GUI hidden")
+		end
+	})
+
 	--// Setting Tab Elements
+	SettingTab:Button({
+		Title = "Close Hub",
+		Desc = "Stops all loops, removes UI & extra GUIs, and disconnects listeners",
+		Justify = "Center",
+		Callback = function()
+			notify("Close Hub", "Closing TeleKill Hub...")
+			stopAllLoops()
+			cleanupExistingUI()
+			hasBuiltUI = false
+		end
+	})
+
+	SettingTab:Space()
+
 	SettingTab:Button({
 		Title = "Closer GUI",
 		Desc = "Stops loops, rebuilds UI, and re-runs script",
@@ -2132,6 +2510,18 @@ local function buildUI()
 		Value = notificationsEnabled,
 		Callback = function(state)
 			notificationsEnabled = state
+		end
+	})
+
+	SettingTab:Space()
+
+	SettingTab:Toggle({
+		Title = "spin off",
+		Desc = "ON = turns off spin rotation on all teleports | OFF = normal fast spin",
+		Value = spinOffActive,
+		Callback = function(state)
+			spinOffActive = state
+			notify("spin off", spinOffActive and "Teleport spin OFF" or "Teleport spin ON")
 		end
 	})
 
@@ -3216,6 +3606,11 @@ local function buildUI()
 				env._TELEKILL_EXEC2.Enabled = not uiHidden
 			end
 		end)
+		pcall(function()
+			if env._TELEKILL_BACKPACK_GUI and env._TELEKILL_BACKPACK_GUI.Parent then
+				env._TELEKILL_BACKPACK_GUI.Enabled = not uiHidden
+			end
+		end)
 	end
 
 	inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -3242,10 +3637,16 @@ local function isAdminPlayer(plr)
 	return ADMIN_USERNAMES[uname] == true or ADMIN_USERNAMES[dname] == true
 end
 
-	--// Chat Commands: /e telekill -> TOGGLE HIDE/SHOW | /e fling -> FLING TARGET | /e fly | /e teleport <player> | /e noclip | /e loopteleport [player]
+	--// Chat Commands: /e telekill | /e fling | /e fly | /e vfly | /e noclip | /e flyhead | /e walkfling | /e fakelag | /e speed | /e jump | /e infjump | /e tpwalk | /e focus | /e teleport [player] | /e loopteleport [player] | /e stop
 	local function onTelekillChat(speakerPlayer, message)
 		if not speakerPlayer or type(message) ~= "string" then return end
-		if not isAdminPlayer(speakerPlayer) then return end
+		local rawTrimmed = message:match("^%s*(.-)%s*$") or ""
+		if not isAdminPlayer(speakerPlayer) then
+			if rawTrimmed:lower():sub(1, 2) == "/e" then
+				notify("TeleKill", "no")
+			end
+			return
+		end
 		local cleaned = message:lower():match("^%s*(.-)%s*$")
 
 		if cleaned == "/e telekill" then
@@ -3257,9 +3658,41 @@ end
 		elseif cleaned == "/e fly" then
 			setFly(not flyActive)
 			notify("TeleKill", (flyActive and "Fly enabled" or "Fly disabled") .. " by " .. speakerPlayer.Name)
+		elseif cleaned == "/e vfly" then
+			local nextState = not (flyActive and noclipActive)
+			setFly(nextState)
+			setNoclip(nextState)
+			notify("TeleKill", (nextState and "VFly (Fly + Noclip) enabled" or "VFly disabled") .. " by " .. speakerPlayer.Name)
 		elseif cleaned == "/e noclip" then
 			setNoclip(not noclipActive)
 			notify("TeleKill", (noclipActive and "Noclip enabled" or "Noclip disabled") .. " by " .. speakerPlayer.Name)
+		elseif cleaned == "/e flyhead" then
+			setFlyHead(not flyHeadActive)
+			notify("TeleKill", (flyHeadActive and "Fly the Head enabled" or "Fly the Head disabled") .. " by " .. speakerPlayer.Name)
+		elseif cleaned == "/e walkfling" then
+			setWalkFling(not walkFlingActive)
+			notify("TeleKill", (walkFlingActive and "Walk Fling enabled" or "Walk Fling disabled") .. " by " .. speakerPlayer.Name)
+		elseif cleaned == "/e fakelag" then
+			setFakeLag(not fakeLagActive)
+			notify("TeleKill", (fakeLagActive and "Fake Lag enabled" or "Fake Lag disabled") .. " by " .. speakerPlayer.Name)
+		elseif cleaned == "/e speed" then
+			setSpeed(not speedEnabled)
+			notify("TeleKill", (speedEnabled and "Speed enabled" or "Speed disabled") .. " by " .. speakerPlayer.Name)
+		elseif cleaned == "/e jump" then
+			setJump(not jumpEnabled)
+			notify("TeleKill", (jumpEnabled and "Jump Power enabled" or "Jump Power disabled") .. " by " .. speakerPlayer.Name)
+		elseif cleaned == "/e infjump" then
+			setInfJump(not infJumpActive)
+			notify("TeleKill", (infJumpActive and "Infinite Jump enabled" or "Infinite Jump disabled") .. " by " .. speakerPlayer.Name)
+		elseif cleaned == "/e tpwalk" then
+			setTPWalk(not tpWalkActive)
+			notify("TeleKill", (tpWalkActive and "TP Walk enabled" or "TP Walk disabled") .. " by " .. speakerPlayer.Name)
+		elseif cleaned == "/e focus" then
+			setNoclipFocus(not noclipFocusActive)
+			notify("TeleKill", (noclipFocusActive and "Noclip Focus enabled" or "Noclip Focus disabled") .. " by " .. speakerPlayer.Name)
+		elseif cleaned == "/e stop" then
+			stopAllLoops()
+			notify("TeleKill", "All loops stopped by " .. speakerPlayer.Name)
 		else
 			local rawQuery = message:match("^%s*/[eE]%s+[tT][eE][lL][eE][pP][oO][rR][tT]%s+(.+)%s*$")
 			if rawQuery then
